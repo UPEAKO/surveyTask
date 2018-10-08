@@ -1,2 +1,6 @@
 # 忽略 debug目录下所有文件
 Debug/
+# 忽略vs生成文件
+.vcxproj
+.filters
+.user
