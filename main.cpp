@@ -37,6 +37,7 @@ int main() {
 	cout << levelP.getMinHeight("A", "B", used) << endl;
 	*/
 	sideAngleAdjust sAA;
+	sAA.adjustment();
 	system("pause");
 	return 0;
 }

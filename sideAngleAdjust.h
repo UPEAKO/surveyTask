@@ -15,12 +15,14 @@ public:
 	double getRadianDirection(string station, string aim);
 	bool isKnownPoint(string name);
 	vector<string> getNextNames(string station, string otherKnown);
+	double getLeftAngle(string otherKnown, string station, string nextName);
+	double getLen(string station, string nextName);
 	int getPointByName(string name);
 private:
 	//边，方向，方位角
 	int sideValueNum;
 	vector<sideValue> sideValues;
-	int directionNum;
+	int directionNum;//20
 	vector<directionValue> directionValues;
 	int azimuthValueNum;
 	vector<azimuthValue> azimuthValues;
@@ -40,6 +42,7 @@ sideAngleAdjust::sideAngleAdjust() {
 	getAllValues();
 }
 
+//读入数据
 void sideAngleAdjust::getAllValues() {
 	ifstream f;
 	f.open("E:/cpp/data/sideAngle.txt");
@@ -67,7 +70,7 @@ void sideAngleAdjust::getAllValues() {
 	for (int i = 0; i < knownPointsNum; i++) {
 		getline(f, eachLine);
 		eachLines = Tool::split(eachLine, ' ');
-		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),0);
+		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),1);
 		points.push_back(PV);
 	}
 
@@ -111,22 +114,36 @@ void sideAngleAdjust::getAllValues() {
 		azimuthValue aV(eachLines.at(0), eachLines.at(1), Tool::toDouble(eachLines.at(2)));
 		azimuthValues.push_back(aV);
 	}
+	f.close();
 }
 
 //平差计算
 void sideAngleAdjust::adjustment() {
 	//两已知点线段开始计算近似坐标
+	/*
 	for (int i = 0; i < sideValueNum; i++) {
 		//两端点已知
 		if (isKnownPoint(sideValues.at(i).oneSide) && isKnownPoint(sideValues.at(i).anotherSide)) {
-			getApproxiCoordinate(sideValues.at(i).oneSide, sideValues.at(i).anotherSide);
+			cout << "here1" << endl;
+			//string station,string otherKnown,double lastDirection, double lastX, double lastY
+			double x1 = points.at(getPointByName(sideValues.at(i).anotherSide)).x;
+			double y1 = points.at(getPointByName(sideValues.at(i).anotherSide)).y;
+			double x2 = points.at(getPointByName(sideValues.at(i).oneSide)).x;
+			double y2 = points.at(getPointByName(sideValues.at(i).oneSide)).y;
+			double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
+			getApproxiCoordinate(sideValues.at(i).oneSide, sideValues.at(i).anotherSide,azimuth,x2,y2);
 			break;
 		}
 	}
+	*/
+	double x1 = points.at(getPointByName("A")).x;
+	double y1 = points.at(getPointByName("A")).y;
+	double x2 = points.at(getPointByName("B")).x;
+	double y2 = points.at(getPointByName("B")).y;
+	double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
+	getApproxiCoordinate("B", "A", azimuth, x2, y2);
 	//角度误差方程系数及常数项
-	//系数阵
 	CMatrix<double> B(rowsOfB, (allPointsNum - knownPointsNum) * 2);
-	//常数阵
 	CMatrix<double> L(rowsOfB, 1);
 	//sign for rows ++
 	int signForRow = 0;
@@ -165,12 +182,12 @@ void sideAngleAdjust::adjustment() {
 				B(signForRow, locationY) = tempY;
 			}
 			//k
-			if (point1 >= knownPointsNum) {
+			if (point2 >= knownPointsNum) {
 				//y位置
 				int locationY = (point2 - knownPointsNum + 1) * 2 - 1;
 				double p11 = 180 * 60 * 60 / PI;
-				double tempX = -(deltaY2 / S0Square1) * p11;
-				double tempY = (deltaX1 / S0Square1) * p11;
+				double tempX = -(deltaY2 / S0Square2) * p11;
+				double tempY = (deltaX2 / S0Square2) * p11;
 				B(signForRow, locationY - 1) = tempX;
 				B(signForRow, locationY) = tempY;
 			}
@@ -190,6 +207,7 @@ void sideAngleAdjust::adjustment() {
 		double deltaXjk = points.at(k).x - points.at(j).x;
 		double deltaYjk = points.at(k).y - points.at(j).y;
 		double S0jk = sqrt(deltaXjk * deltaXjk + deltaYjk * deltaYjk);
+		//cout << i << ": " << S0jk << endl;
 		if (j >= knownPointsNum) {
 			//Y位置
 			int locationY = (j - knownPointsNum + 1) * 2 - 1;
@@ -210,27 +228,21 @@ void sideAngleAdjust::adjustment() {
 		L(signForRow, 1) = sideValues.at(i).len - S0jk;
 		signForRow++;
 	}
+	cout << B;
+	cout << L;
+	cout << "here" << endl;
 	//权阵P
-}
-
-//如果不存在，添加值到最后
-int sideAngleAdjust::getPointByName(string name) {
-	for (int i = 0; i < points.size(); i++) {
-		if (points.at(i).name == name)
-			return i;
-	}
-	points.push_back(PointV1(name, 0, 0, -1));
-	return points.size() - 1;
 }
 
 //获取未知点坐标近似值,递归计算;lastInfo:方位角，x,y
 void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,double lastDirection, double lastX, double lastY) {
 	//如果没有下一个可计算点
-	if (false)
+	vector<string> nextNames = getNextNames(station, otherKnown);
+	if (nextNames.size() == 0)
 		return;
 	//oneSide始终为站
-	vector<string> nextNames = getNextNames(station,otherKnown);
 	for (int i = 0; i < nextNames.size(); i++) {
+		//弧度
 		double leftAngle = getLeftAngle(otherKnown, station, nextNames.at(i));
 		double len = getLen(station, nextNames.at(i));
 		double direction = lastDirection + leftAngle - PI;
@@ -241,13 +253,60 @@ void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,dou
 		//points.push_back(PointV1(nextNames.at(i), currentX,currentY,0));
 		points.at(getPointByName(nextNames.at(i))).x = currentX;
 		points.at(getPointByName(nextNames.at(i))).y = currentY;
+		cout<< nextNames.at(i) << ": " << currentX << " , " << currentY << endl;
 		points.at(getPointByName(nextNames.at(i))).sign = 1;
 		getApproxiCoordinate(nextNames.at(i), station, direction, currentX, currentY);
 	}
 }
 
-vector<string> sideAngleAdjust::getNextNames(string station, string otherKnown) {
+//获取左角值：弧度
+double sideAngleAdjust::getLeftAngle(string otherKnown, string station, string nextName) {
+	//otherKnown->station->nextName为前进方向
+	double radianDirection1 = getRadianDirection(station, otherKnown);
+	double radianDirection2 = getRadianDirection(station, nextName);
+	double tempRadian = radianDirection1 - radianDirection2;
+	//右角
+	if (tempRadian > 1E-9)
+		return 2 * PI - tempRadian;
+	else
+		return -tempRadian;
+}
 
+//获取长度
+double sideAngleAdjust::getLen(string station, string nextName) {
+	for (int i = 0; i < sideValueNum; i++) {
+		if ((station == sideValues.at(i).oneSide && nextName == sideValues.at(i).anotherSide)
+			|| (station == sideValues.at(i).anotherSide && nextName == sideValues.at(i).oneSide))
+			return sideValues.at(i).len;
+	}
+	return -1;
+}
+
+//递归的下一些点
+vector<string> sideAngleAdjust::getNextNames(string station, string otherKnown) {
+	vector<string> result;
+	//在方向观测值中查找
+	for (int i = 0; i < directionValues.size(); i++) {
+		if (station == directionValues.at(i).station) {
+			int temp = directionValues.at(i).aims.size();
+			for (int j = 0; j < temp; j++) {
+				//如果找到otherKnown
+				if (directionValues.at(i).aims.at(j).aim == otherKnown) {
+					for (int k = 0; k < temp; k++) {
+						//如果其他方向
+						if (k != j) {
+							int location = getPointByName(directionValues.at(i).aims.at(k).aim);
+							//如果未标记为1
+							if (points.at(location).sign != 1) {
+								result.push_back(directionValues.at(i).aims.at(k).aim);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return result;
 }
 
 bool sideAngleAdjust::isKnownPoint(string name) {
@@ -260,7 +319,7 @@ bool sideAngleAdjust::isKnownPoint(string name) {
 
 //获取方向值
 double sideAngleAdjust::getRadianDirection(string station,string aim) {
-	for (int i = 0; i < directionValueNum; i++) {
+	for (int i = 0; i < directionValues.size(); i++) {
 		if (station == directionValues.at(i).station) {
 			for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
 				if (aim == directionValues.at(i).aims.at(j).aim) {
@@ -273,4 +332,14 @@ double sideAngleAdjust::getRadianDirection(string station,string aim) {
 		}
 	}
 	return -1;
+}
+
+//如果不存在，添加值到最后
+int sideAngleAdjust::getPointByName(string name) {
+	for (int i = 0; i < points.size(); i++) {
+		if (points.at(i).name == name)
+			return i;
+	}
+	points.push_back(PointV1(name, 0, 0, -1));
+	return points.size() - 1;
 }
