@@ -38,6 +38,6 @@ int main() {
 	*/
 	sideAngleAdjust sAA;
 	sAA.adjustment();
-	system("pause");
+	//system("pause");
 	return 0;
 }

@@ -18,6 +18,7 @@ public:
 	double getLeftAngle(string otherKnown, string station, string nextName);
 	double getLen(string station, string nextName);
 	int getPointByName(string name);
+	double getKnownAzimuth(string station, string aim);
 private:
 	//边，方向，方位角
 	int sideValueNum;
@@ -70,7 +71,7 @@ void sideAngleAdjust::getAllValues() {
 	for (int i = 0; i < knownPointsNum; i++) {
 		getline(f, eachLine);
 		eachLines = Tool::split(eachLine, ' ');
-		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),1);
+		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),0);
 		points.push_back(PV);
 	}
 
@@ -138,8 +139,10 @@ void sideAngleAdjust::adjustment() {
 	*/
 	double x1 = points.at(getPointByName("A")).x;
 	double y1 = points.at(getPointByName("A")).y;
+	points.at(getPointByName("A")).sign = 1;
 	double x2 = points.at(getPointByName("B")).x;
 	double y2 = points.at(getPointByName("B")).y;
+	points.at(getPointByName("B")).sign = 1;
 	double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
 	getApproxiCoordinate("B", "A", azimuth, x2, y2);
 	//角度误差方程系数及常数项
@@ -232,6 +235,7 @@ void sideAngleAdjust::adjustment() {
 	cout << L;
 	cout << "here" << endl;
 	//权阵P
+
 }
 
 //获取未知点坐标近似值,递归计算;lastInfo:方位角，x,y
@@ -243,20 +247,66 @@ void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,dou
 	//oneSide始终为站
 	for (int i = 0; i < nextNames.size(); i++) {
 		//弧度
+		double direction = 0;
 		double leftAngle = getLeftAngle(otherKnown, station, nextNames.at(i));
 		double len = getLen(station, nextNames.at(i));
-		double direction = lastDirection + leftAngle - PI;
+		//已给方位角差了1",差几千米
+		//如果已知方位角
+		/*
+		if ((direction = getKnownAzimuth(station, nextNames.at(i)) < 3 * PI)) {
+
+		}
+		else {
+			direction = lastDirection + leftAngle - PI;
+			if (direction > 2 * PI)
+				direction -= 2 * PI;
+		}*/
+		//*
+		direction = lastDirection + leftAngle - PI;
 		if (direction > 2 * PI)
 			direction -= 2 * PI;
-		double currentX = lastX + len * cos(direction);
-		double currentY = lastY + len * sin(direction);
-		//points.push_back(PointV1(nextNames.at(i), currentX,currentY,0));
-		points.at(getPointByName(nextNames.at(i))).x = currentX;
-		points.at(getPointByName(nextNames.at(i))).y = currentY;
-		cout<< nextNames.at(i) << ": " << currentX << " , " << currentY << endl;
-		points.at(getPointByName(nextNames.at(i))).sign = 1;
-		getApproxiCoordinate(nextNames.at(i), station, direction, currentX, currentY);
+		if (nextNames.at(i) == "2")
+			cout << "逆：" << Tool::radianToAngle(direction) << endl;
+			//*/
+		double currentX = 0, currentY = 0;
+		if (isKnownPoint(nextNames.at(i))) {
+			currentX = points.at(getPointByName(nextNames.at(i))).x;
+			currentY = points.at(getPointByName(nextNames.at(i))).y;
+			getApproxiCoordinate(nextNames.at(i), station, direction, currentX, currentY);
+		}
+		else {
+			currentX = lastX + len * cos(direction);
+			currentY = lastY + len * sin(direction);
+			//points.push_back(PointV1(nextNames.at(i), currentX,currentY,0));
+			points.at(getPointByName(nextNames.at(i))).x = currentX;
+			points.at(getPointByName(nextNames.at(i))).y = currentY;
+			cout.precision(DBL_DECIMAL_DIG);
+			cout << nextNames.at(i) << ": " << currentX << " , " << currentY << endl;
+			points.at(getPointByName(nextNames.at(i))).sign = 1;
+			getApproxiCoordinate(nextNames.at(i), station, direction, currentX, currentY);
+		}
 	}
+}
+
+//返回弧度值的测量方位角,返回值大于4*PI无此方位角
+double sideAngleAdjust::getKnownAzimuth(string station, string aim) {
+	for (int i = 0; i < azimuthValueNum; i++) {
+		//匹配顺向方位角
+		if (azimuthValues.at(i).start == station && azimuthValues.at(i).end == aim) {
+			return Tool::angleToRadian(azimuthValues.at(i).azimuthVal);
+		}
+		//逆向
+		if (azimuthValues.at(i).start == aim && azimuthValues.at(i).end == station) {
+			double tempAzimuth = Tool::angleToRadian(azimuthValues.at(i).azimuthVal) - PI;
+			if (tempAzimuth < 0)
+				tempAzimuth += 2 * PI;
+			if (aim == "2")
+				cout << "逆：" << Tool::radianToAngle(tempAzimuth) << endl;
+			return tempAzimuth;
+		}
+	}
+	//无的方位角
+	return 4 * PI;
 }
 
 //获取左角值：弧度
@@ -288,21 +338,9 @@ vector<string> sideAngleAdjust::getNextNames(string station, string otherKnown) 
 	//在方向观测值中查找
 	for (int i = 0; i < directionValues.size(); i++) {
 		if (station == directionValues.at(i).station) {
-			int temp = directionValues.at(i).aims.size();
-			for (int j = 0; j < temp; j++) {
-				//如果找到otherKnown
-				if (directionValues.at(i).aims.at(j).aim == otherKnown) {
-					for (int k = 0; k < temp; k++) {
-						//如果其他方向
-						if (k != j) {
-							int location = getPointByName(directionValues.at(i).aims.at(k).aim);
-							//如果未标记为1
-							if (points.at(location).sign != 1) {
-								result.push_back(directionValues.at(i).aims.at(k).aim);
-							}
-						}
-					}
-				}
+			for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
+				if (points.at(getPointByName(directionValues.at(i).aims.at(j).aim)).sign != 1)
+					result.push_back(directionValues.at(i).aims.at(j).aim);
 			}
 		}
 	}
@@ -326,9 +364,6 @@ double sideAngleAdjust::getRadianDirection(string station,string aim) {
 					return Tool::angleToRadian(directionValues.at(i).aims.at(j).direction);
 				}
 			}
-		}
-		else {
-			return -1;
 		}
 	}
 	return -1;
