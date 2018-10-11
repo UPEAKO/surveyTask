@@ -13,7 +13,7 @@ public:
 	~sideAngleAdjust() {};
 	void getAllValues();
 	void adjustment();
-	void getApproxiCoordinate(string station,string otherKnown,double lastDirection, double lastX, double lastY);
+	void getApproxiCoordinate(string station, string otherKnown, double lastDirection, double lastX, double lastY);
 	double getRadianDirection(string station, string aim);
 	bool isKnownPoint(string name);
 	vector<string> getNextNames(string station, string otherKnown);
@@ -23,11 +23,11 @@ public:
 	double getKnownAzimuth(string station, string aim);
 private:
 	//边，方向，方位角
-	int sideValueNum;//9
+	int sideValueNum;
 	vector<sideValue> sideValues;
 	int directionNum;//20
 	vector<directionValue> directionValues;
-	int azimuthValueNum;//1
+	int azimuthValueNum;
 	vector<azimuthValue> azimuthValues;
 	//已知点
 	int knownPointsNum;
@@ -37,8 +37,8 @@ private:
 	double DirectMeanError;
 	double DistanceFixedError, DistanceScaleError;
 	double AzimuthMeanError;
-	//测站数
-	int stationsNum;
+	//方程个数
+	int rowsOfB;
 };
 
 sideAngleAdjust::sideAngleAdjust() {
@@ -56,9 +56,11 @@ void sideAngleAdjust::getAllValues() {
 	eachLines = Tool::split(eachLine, ' ');
 	allPointsNum = Tool::toInt(eachLines.at(0));
 	knownPointsNum = Tool::toInt(eachLines.at(1));
-	stationsNum = Tool::toInt(eachLines.at(2));
+	int stationsNum = Tool::toInt(eachLines.at(2));
 	directionNum = Tool::toInt(eachLines.at(3));
 	sideValueNum = Tool::toInt(eachLines.at(4));
+	//B矩阵行
+	rowsOfB += sideValueNum;
 	azimuthValueNum = Tool::toInt(eachLines.at(5));
 	//line two
 	getline(f, eachLine);
@@ -71,7 +73,7 @@ void sideAngleAdjust::getAllValues() {
 	for (int i = 0; i < knownPointsNum; i++) {
 		getline(f, eachLine);
 		eachLines = Tool::split(eachLine, ' ');
-		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),0);
+		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)), 0);
 		points.push_back(PV);
 	}
 
@@ -85,13 +87,15 @@ void sideAngleAdjust::getAllValues() {
 		//添加未知点
 
 		int nums = Tool::toInt(eachLines.at(1));
+		//B矩阵行
+		rowsOfB += (nums - 1);
 		vector<eachDirectionFromStation> edfs;
 		for (int j = 0; j < nums; j++) {
 			getline(f, eachLine);
 			eachLines = Tool::split(eachLine, ' ');
 			edfs.push_back(eachDirectionFromStation(eachLines.at(0), Tool::toDouble(eachLines.at(1))));
 		}
-		directionValue dV(station,edfs);
+		directionValue dV(station, edfs);
 		directionValues.push_back(dV);
 	}
 
@@ -143,60 +147,61 @@ void sideAngleAdjust::adjustment() {
 	points.at(getPointByName("B")).sign = 1;
 	double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
 	getApproxiCoordinate("B", "A", azimuth, x2, y2);
-	//30 21
-	CMatrix<double> B(sideValueNum + directionNum + azimuthValueNum, (allPointsNum - knownPointsNum) * 2 + stationsNum);
-	CMatrix<double> L(sideValueNum + directionNum + azimuthValueNum, 1);
-	//角度误差方程
+	//角度误差方程系数及常数项
+	CMatrix<double> B(rowsOfB, (allPointsNum - knownPointsNum) * 2);
+	CMatrix<double> L(rowsOfB, 1);
 	//sign for rows ++
 	int signForRow = 0;
 	for (int i = 0; i < directionValues.size(); i++) {
-		//史赖伯
-		double Z0 = 0;
-		int tempNum = directionValues.at(i).aims.size();
-		int allDeltaAngle = 0;
-		for (int k = 0; k < tempNum; k++) {
+		for (int j = 0; j < directionValues.at(i).aims.size() - 1; j++) {
+			//对每一个夹角
+			int point1 = getPointByName(directionValues.at(i).aims.at(j).aim);//h
 			int pointStation = getPointByName(directionValues.at(i).station);//j
-			int pointAim = getPointByName(directionValues.at(i).aims.at(k).aim);//k
-			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
-			allDeltaAngle += (azimu - Tool::angleToRadian(directionValues.at(i).aims.at(k).direction));
-		}
-		Z0 = allDeltaAngle / tempNum;
-		for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
-			//对每一个方向
-			int pointStation = getPointByName(directionValues.at(i).station);//j
-			int pointAim = getPointByName(directionValues.at(i).aims.at(j).aim);//k
-			double deltaX = points.at(pointAim).x - points.at(pointStation).x;//Xjk
-			double deltaY = points.at(pointAim).y - points.at(pointStation).y;//Yjk
-			double S0Square = deltaX * deltaX + deltaY * deltaY;//Sjk
+			int point2 = getPointByName(directionValues.at(i).aims.at(j + 1).aim);//k
+			//涉及6各未知数，
+			double deltaX1 = points.at(point1).x - points.at(pointStation).x;//Xjh
+			double deltaY1 = points.at(point1).y - points.at(pointStation).y;//Yjh
+			double deltaX2 = points.at(point2).x - points.at(pointStation).x;//Xjk
+			double deltaY2 = points.at(point2).y - points.at(pointStation).y;//Yjk
+			double S0Square1 = deltaX1 * deltaX1 + deltaY1 * deltaY1;//Sjh
+			double S0Square2 = deltaX2 * deltaX2 + deltaY2 * deltaY2;//Sjk
 			//非已知存入
 			//j
 			if (pointStation >= knownPointsNum) {
 				//y位置
 				int locationY = (pointStation - knownPointsNum + 1) * 2 - 1;
 				double p11 = 180 * 60 * 60 / PI;
-				double tempX = (deltaY / S0Square) * p11;
-				double tempY = -(deltaX / S0Square) * p11;
+				double tempX = (deltaY2 / S0Square2 - deltaY1 / S0Square1) * p11;
+				double tempY = (deltaX1 / S0Square1 - deltaX2 / S0Square2) * p11;
+				B(signForRow, locationY - 1) = tempX;
+				B(signForRow, locationY) = tempY;
+			}
+			//h
+			if (point1 >= knownPointsNum) {
+				//y位置
+				int locationY = (point1 - knownPointsNum + 1) * 2 - 1;
+				double p11 = 180 * 60 * 60 / PI;
+				double tempX = (deltaY1 / S0Square1) * p11;
+				double tempY = -(deltaX1 / S0Square1) * p11;
 				B(signForRow, locationY - 1) = tempX;
 				B(signForRow, locationY) = tempY;
 			}
 			//k
-			if (pointAim >= knownPointsNum) {
+			if (point2 >= knownPointsNum) {
 				//y位置
-				int locationY = (pointAim - knownPointsNum + 1) * 2 - 1;
+				int locationY = (point2 - knownPointsNum + 1) * 2 - 1;
 				double p11 = 180 * 60 * 60 / PI;
-				double tempX = -(deltaY / S0Square) * p11;
-				double tempY = (deltaX / S0Square) * p11;
+				double tempX = -(deltaY2 / S0Square2) * p11;
+				double tempY = (deltaX2 / S0Square2) * p11;
 				B(signForRow, locationY - 1) = tempX;
 				B(signForRow, locationY) = tempY;
 			}
-			//-z
-			int colummnFor_z = (allPointsNum - knownPointsNum) * 2 + i;
-			B(signForRow, colummnFor_z) = -1;
-			//常数项L - (alpha - Z0)
-			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
-			double Ljk = getRadianDirection(points.at(pointStation).name, points.at(pointAim).name);
-			double tempL = Ljk - (azimu - Z0);
-			L(signForRow, 1) = tempL;
+			//常数项L - L0
+			double tempL = Tool::angle2MinusAngle1(directionValues.at(i).aims.at(j + 1).direction, directionValues.at(i).aims.at(j).direction);
+			//any problem?
+			double tempL0 = Tool::angle2MinusAngle1(Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(point2).x, points.at(point2).y),
+				Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(point1).x, points.at(point1).y));
+			L(rowsOfB, 1) = tempL - tempL0;
 			signForRow++;
 		}
 	}
@@ -226,7 +231,6 @@ void sideAngleAdjust::adjustment() {
 		}
 		//常数项L - S0
 		L(signForRow, 1) = sideValues.at(i).len - S0jk;
-		cout << "边长：" << sideValues.at(i).len - S0jk << endl;
 		signForRow++;
 	}
 	cout << B;
@@ -237,7 +241,7 @@ void sideAngleAdjust::adjustment() {
 }
 
 //获取未知点坐标近似值,递归计算;lastInfo:方位角，x,y
-void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,double lastDirection, double lastX, double lastY) {
+void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown, double lastDirection, double lastX, double lastY) {
 	//如果没有下一个可计算点
 	vector<string> nextNames = getNextNames(station, otherKnown);
 	if (nextNames.size() == 0)
@@ -265,7 +269,7 @@ void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,dou
 			direction -= 2 * PI;
 		if (nextNames.at(i) == "2")
 			cout << "逆：" << Tool::radianToAngle(direction) << endl;
-			//*/
+		//*/
 		double currentX = 0, currentY = 0;
 		if (isKnownPoint(nextNames.at(i))) {
 			currentX = points.at(getPointByName(nextNames.at(i))).x;
@@ -354,7 +358,7 @@ bool sideAngleAdjust::isKnownPoint(string name) {
 }
 
 //获取方向值
-double sideAngleAdjust::getRadianDirection(string station,string aim) {
+double sideAngleAdjust::getRadianDirection(string station, string aim) {
 	for (int i = 0; i < directionValues.size(); i++) {
 		if (station == directionValues.at(i).station) {
 			for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
@@ -376,3 +380,4 @@ int sideAngleAdjust::getPointByName(string name) {
 	points.push_back(PointV1(name, 0, 0, -1));
 	return points.size() - 1;
 }
+

@@ -125,6 +125,7 @@
     <ClInclude Include="LevelPrecision.h" />
     <ClInclude Include="PointV1.h" />
     <ClInclude Include="sideAngleAdjust.h" />
+    <ClInclude Include="sideAngleAdjustV1.h" />
     <ClInclude Include="sideValue.h" />
     <ClInclude Include="SurveyValue.h" />
     <ClInclude Include="Tool.h" />
