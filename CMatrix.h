@@ -59,7 +59,8 @@ public:
 		}
 	}
 
-	/*获取任一矩阵元素*/
+	/*获取任一矩阵元素
+	注意row,column均从0开始，最初为了与for循环i = 0开始匹配与vector*/
 	T& operator() (int row, int column) {
 		return m_matrix[row * m_columns + column];
 	}
