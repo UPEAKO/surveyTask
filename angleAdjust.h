@@ -10,6 +10,10 @@ public:
 	void adjust();
 private:
 	int getPointByName(string name);
+	double getRadianAngle(string aim1, string station, string aim2);
+	double getRadianDirection(string station, string aim);
+	string getThirdPoint(string point1, string point2);
+	int getStationIndexByName(string name);
 
 	int directionNum;
 	vector<directionValue> directionValues;
@@ -69,7 +73,135 @@ angleAdjust::angleAdjust() {
 //平差计算
 void angleAdjust::adjust() {
 	//近似坐标
+	//标志位，所有近似坐标已出
+	int signForApproxiPoint = knownPointsNum;
+	string point1 = points.at(0).name;
+	string point2 = points.at(1).name;
+	string tempPoint = getThirdPoint(point1, point2);
+	while (signForApproxiPoint < allPointsNum) {
+		if (tempPoint != "") {
+			double angle1 = getRadianAngle(tempPoint, point1, point2);
+			double angle2 = getRadianAngle(tempPoint, point2, point1);
+			//返回4*PI暂时不考虑
+			//余切
+			double point1X = points.at(getPointByName(point1)).x;
+			double point1Y = points.at(getPointByName(point1)).y;
+			double point2X = points.at(getPointByName(point2)).x;
+			double point2Y = points.at(getPointByName(point2)).y;
+			//tempPoint在point1 -> point2的右侧
+			bool right = getRadianDirection(point1,point2) < getRadianDirection(point1,tempPoint) ? true : false;
+			if (right) {
+				double tempPointX = (point1X / tan(angle2) + point2X / tan(angle1) - point2Y + point1Y) / (1 / tan(angle1) + 1 / tan(angle2));
+				double tempPointY = (point1Y / tan(angle2) + point2Y / tan(angle1) + point2X - point1X) / (1 / tan(angle1) + 1 / tan(angle2));
+				points.at(getPointByName(tempPoint)).x = tempPointX;
+				points.at(getPointByName(tempPoint)).y = tempPointY;
+				cout << tempPoint << ": " << tempPointX << " , " << tempPointY << endl;
+				signForApproxiPoint++;
+			}
+			else {
+				double tempPointX = (point1X / tan(angle2) + point2X / tan(angle1) - point1Y + point2Y) / (1 / tan(angle1) + 1 / tan(angle2));
+				double tempPointY = (point1Y / tan(angle2) + point2Y / tan(angle1) + point1X - point2X) / (1 / tan(angle1) + 1 / tan(angle2));
+				points.at(getPointByName(tempPoint)).x = tempPointX;
+				points.at(getPointByName(tempPoint)).y = tempPointY;
+				cout << tempPoint << ": " << tempPointX << " , " << tempPointY << endl;
+				signForApproxiPoint++;
+			}
+			//全体向前移动
+			point1 = point2;
+			point2 = tempPoint;
+			tempPoint = getThirdPoint(point1, point2);
+		}
+		else {
+			//是否有可能
+		}
+	}
+	CMatrix<double> B(directionNum,(allPointsNum - knownPointsNum) * 2 + stationsNum);
+	CMatrix<double> L(directionNum,1);
+	//CMatrix<double> P(directionNum,directionNum);单位阵舍
+	//方向值误差方程系数及常数项
+	int signForRow = 0;
+	for (int i = 0; i < directionValues.size(); i++) {
+		//史赖伯
+		double Z0 = 0;
+		int tempNum = directionValues.at(i).aims.size();
+		int allDeltaAngle = 0;
+		for (int k = 0; k < tempNum; k++) {
+			int pointStation = getPointByName(directionValues.at(i).station);//j
+			int pointAim = getPointByName(directionValues.at(i).aims.at(k).aim);//k
+			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
+			allDeltaAngle += (azimu - Tool::angleToRadian(directionValues.at(i).aims.at(k).direction));
+		}
+		Z0 = allDeltaAngle / tempNum;
+		for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
+			//对每一个方向
+			int pointStation = getPointByName(directionValues.at(i).station);//j
+			int pointAim = getPointByName(directionValues.at(i).aims.at(j).aim);//k
+			double deltaX = points.at(pointAim).x - points.at(pointStation).x;//Xjk
+			double deltaY = points.at(pointAim).y - points.at(pointStation).y;//Yjk
+			double S0Square = deltaX * deltaX + deltaY * deltaY;//Sjk
+			//非已知存入
+			//j
+			if (pointStation >= knownPointsNum) {
+				//y位置
+				int locationY = (pointStation - knownPointsNum + 1) * 2 - 1;
+				//double p11 = 180 * 60 * 60 / PI;
+				double tempX = (deltaY / S0Square);
+				double tempY = -(deltaX / S0Square);
+				B(signForRow, locationY - 1) = tempX;
+				B(signForRow, locationY) = tempY;
+			}
+			//k
+			if (pointAim >= knownPointsNum) {
+				//y位置
+				int locationY = (pointAim - knownPointsNum + 1) * 2 - 1;
+				//double p11 = 180 * 60 * 60 / PI;
+				double tempX = -(deltaY / S0Square);
+				double tempY = (deltaX / S0Square);
+				B(signForRow, locationY - 1) = tempX;
+				B(signForRow, locationY) = tempY;
+			}
+			//-z
+			int colummnFor_z = (allPointsNum - knownPointsNum) * 2 + i;
+			B(signForRow, colummnFor_z) = -1;
+			//常数项L - (alpha - Z0)
+			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
+			double Ljk = getRadianDirection(points.at(pointStation).name, points.at(pointAim).name);
+			double tempL = Ljk - (azimu - Z0);
+			L(signForRow, 0) = tempL;
+			signForRow++;
+		}
+	}
+	//cout << B;
+	//cout << L;
+	//cout << B.transpose() * B;
+	CMatrix<double> x = (B.transpose() * B).inversion() * B.transpose() * L;
+	//cout << x;
+}
 
+//由两点获取三角形第三点未知名称,or 空串
+//已有近似坐标的点sign = 0，未有为-1
+string angleAdjust::getThirdPoint(string point1, string point2) {
+	int point1Index = getStationIndexByName(point1);
+	int point2Index = getStationIndexByName(point2);
+	for (int i = 0; i < directionValues.at(point1Index).aims.size(); i++) {
+		string tempPoint = directionValues.at(point1Index).aims.at(i).aim;
+		if (tempPoint != point2) {
+			for (int j = 0; j < directionValues.at(point2Index).aims.size(); j++) {
+				if (tempPoint == directionValues.at(point2Index).aims.at(j).aim && points.at(getPointByName(tempPoint)).sign == -1)
+					return tempPoint;
+			}
+		}
+	}
+	return "";
+}
+
+//由名称获取站点位置,否则-1
+int angleAdjust::getStationIndexByName(string station) {
+	for (int i = 0; i < directionNum; i++) {
+		if (directionValues.at(i).station == station)
+			return i;
+	}
+	return -1;
 }
 
 //如果不存在，添加值到最后
@@ -80,4 +212,30 @@ int angleAdjust::getPointByName(string name) {
 	}
 	points.push_back(PointV1(name, 0, 0, -1));
 	return points.size() - 1;
+}
+
+//返回弧度夹角,如果不存在,返回4*PI
+double angleAdjust::getRadianAngle(string aim1, string station, string aim2) {
+	double radianDirection1 = getRadianDirection(station, aim1);
+	double radianDirection2 = getRadianDirection(station, aim2);
+	if (radianDirection1 > 3 * PI || radianDirection2 > 3 * PI)
+		return 4 * PI;
+	if (radianDirection1 > radianDirection2)
+		return radianDirection1 - radianDirection2;
+	else
+		return radianDirection2 - radianDirection1;
+}
+
+//返回弧度方向观测值，没有返回4*PI
+double angleAdjust::getRadianDirection(string station, string aim) {
+	for (int i = 0; i < directionValues.size(); i++) {
+		if (station == directionValues.at(i).station) {
+			for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
+				if (aim == directionValues.at(i).aims.at(j).aim) {
+					return Tool::angleToRadian(directionValues.at(i).aims.at(j).direction);
+				}
+			}
+		}
+	}
+	return 4*PI;
 }

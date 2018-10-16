@@ -146,7 +146,7 @@ void sideAngleAdjust::adjustment() {
 	//30 21
 	CMatrix<double> B(sideValueNum + directionNum + azimuthValueNum, (allPointsNum - knownPointsNum) * 2 + stationsNum);
 	CMatrix<double> L(sideValueNum + directionNum + azimuthValueNum, 1);
-	//角度误差方程及常数项
+	//方向值误差方程及常数项
 	int signForRow = 0;
 	for (int i = 0; i < directionValues.size(); i++) {
 		//史赖伯
@@ -262,7 +262,7 @@ void sideAngleAdjust::adjustment() {
 		L(signForRow, 0) = tempY;
 		signForRow++;
 	}
-	//cout << B;
+	cout << B;
 	//cout << L;
 	//权阵P 21*21
 	int PRC = sideValueNum + directionNum + azimuthValueNum;
