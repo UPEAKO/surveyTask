@@ -4,6 +4,7 @@
 #include "LevelPrecision.h"
 #include "include.h"
 #include "sideAngleAdjust.h"
+#include "angleAdjust.h"
 
 int main() {
 	/*
@@ -38,6 +39,8 @@ int main() {
 	*/
 	sideAngleAdjust sAA;
 	sAA.adjustment();
+	//angleAdjust AA;
+	
 	//system("pause");
 	return 0;
 }

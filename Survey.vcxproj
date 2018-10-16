@@ -118,6 +118,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="angleAdjust.h" />
     <ClInclude Include="azimuthValue.h" />
     <ClInclude Include="CMatrix.h" />
     <ClInclude Include="eachDirectionFromStation.h" />

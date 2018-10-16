@@ -275,6 +275,7 @@ void sideAngleAdjust::adjustment() {
 	for (; t < sideValueNum + directionNum; t++) {
 		int tempForSide1 = t - directionNum;
 		double tempP = (DirectMeanError * DirectMeanError) / (DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len);
+		//double tempP = 1 / (DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len);
 		P(t, t) = tempP;
 	}
 	//方位角
@@ -282,9 +283,10 @@ void sideAngleAdjust::adjustment() {
 		P(t, t) = (DirectMeanError * DirectMeanError) / (AzimuthMeanError * AzimuthMeanError);
 	//cout << P;
 	//B 30*21; P 21*21; L 30*1
+	//cout << B.transpose() * P * B;//对称
 	CMatrix<double> x = (B.transpose() * P * B).inversion() * B.transpose() * P * L;
-	cout << "改正数" << endl;
-	cout << x;
+	//cout << "改正数" << endl;
+	//cout << x;
 	//将坐标改正值加入近似值
 	cout << "改正后" << endl;
 	for (int i = knownPointsNum; i < allPointsNum; i++) {
