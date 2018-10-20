@@ -37,11 +37,10 @@ int main() {
 	vector<string> used;
 	cout << levelP.getMinHeight("A", "B", used) << endl;
 	*/
-	//sideAngleAdjust sAA;
-	//sAA.adjustment();
-	angleAdjust AA;
-	AA.adjust();
-	int a = 0;
+	sideAngleAdjust sAA;
+	sAA.adjustment();
+	//angleAdjust AA;
+	//AA.adjust();
 	//system("pause");
 	return 0;
 }

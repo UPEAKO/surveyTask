@@ -7,6 +7,16 @@
 #include "CMatrix.h"
 #include "include.h"
 
+/*
+问题同测角网
+对于L最初仍有较大值
+因取舍是否对近似方位角加2*PI未使用：方位角 < 方向角条件
+而是用了方位角 < 定向角
+而对于每一个测站的初始边即为定向角边，二者值相差不多，且相对大小并不确定，所以有可能L加了2*PI，
+导致较大偏差
+最终改正后坐标于正确坐标差值在5cm之内
+另：已给方位角差了1",差几千米，无法平差？？？？？
+*/
 class sideAngleAdjust {
 public:
 	sideAngleAdjust();
@@ -82,8 +92,6 @@ void sideAngleAdjust::getAllValues() {
 		getline(f, eachLine);
 		eachLines = Tool::split(eachLine, ' ');
 		string station = eachLines.at(0);
-		//添加未知点
-
 		int nums = Tool::toInt(eachLines.at(1));
 		vector<eachDirectionFromStation> edfs;
 		for (int j = 0; j < nums; j++) {
@@ -119,22 +127,7 @@ void sideAngleAdjust::getAllValues() {
 //平差计算
 void sideAngleAdjust::adjustment() {
 	//两已知点线段开始计算近似坐标
-	/*
-	for (int i = 0; i < sideValueNum; i++) {
-		//两端点已知
-		if (isKnownPoint(sideValues.at(i).oneSide) && isKnownPoint(sideValues.at(i).anotherSide)) {
-			cout << "here1" << endl;
-			//string station,string otherKnown,double lastDirection, double lastX, double lastY
-			double x1 = points.at(getPointByName(sideValues.at(i).anotherSide)).x;
-			double y1 = points.at(getPointByName(sideValues.at(i).anotherSide)).y;
-			double x2 = points.at(getPointByName(sideValues.at(i).oneSide)).x;
-			double y2 = points.at(getPointByName(sideValues.at(i).oneSide)).y;
-			double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
-			getApproxiCoordinate(sideValues.at(i).oneSide, sideValues.at(i).anotherSide,azimuth,x2,y2);
-			break;
-		}
-	}
-	*/
+	//占位:此处添加查找两相连接的已知点函数
 	double x1 = points.at(getPointByName("A")).x;
 	double y1 = points.at(getPointByName("A")).y;
 	points.at(getPointByName("A")).sign = 1;
@@ -152,11 +145,14 @@ void sideAngleAdjust::adjustment() {
 		//史赖伯
 		double Z0 = 0;
 		int tempNum = directionValues.at(i).aims.size();
-		int allDeltaAngle = 0;
+		double allDeltaAngle = 0;
 		for (int k = 0; k < tempNum; k++) {
 			int pointStation = getPointByName(directionValues.at(i).station);//j
 			int pointAim = getPointByName(directionValues.at(i).aims.at(k).aim);//k
 			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
+			if (azimu < Tool::angleToRadian(directionValues.at(i).aims.at(k).direction)) {
+				azimu += (2 * PI);
+			}
 			allDeltaAngle += (azimu - Tool::angleToRadian(directionValues.at(i).aims.at(k).direction));
 		}
 		Z0 = allDeltaAngle / tempNum;
@@ -194,6 +190,8 @@ void sideAngleAdjust::adjustment() {
 			//常数项L - (alpha - Z0)
 			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
 			double Ljk = getRadianDirection(points.at(pointStation).name, points.at(pointAim).name);
+			if (azimu < Ljk)
+				azimu += (2 * PI);
 			double tempL = Ljk - (azimu - Z0);
 			L(signForRow, 0) = tempL;
 			signForRow++;
@@ -206,7 +204,6 @@ void sideAngleAdjust::adjustment() {
 		double deltaXjk = points.at(k).x - points.at(j).x;
 		double deltaYjk = points.at(k).y - points.at(j).y;
 		double S0jk = sqrt(deltaXjk * deltaXjk + deltaYjk * deltaYjk);
-		//cout << i << ": " << S0jk << endl;
 		if (j >= knownPointsNum) {
 			//Y位置
 			int locationY = (j - knownPointsNum + 1) * 2 - 1;
@@ -262,8 +259,6 @@ void sideAngleAdjust::adjustment() {
 		L(signForRow, 0) = tempY;
 		signForRow++;
 	}
-	cout << B;
-	//cout << L;
 	//权阵P 21*21
 	int PRC = sideValueNum + directionNum + azimuthValueNum;
 	CMatrix<double> P(PRC, PRC);
@@ -274,20 +269,15 @@ void sideAngleAdjust::adjustment() {
 	//边
 	for (; t < sideValueNum + directionNum; t++) {
 		int tempForSide1 = t - directionNum;
-		double tempP = (DirectMeanError * DirectMeanError) / (DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len);
-		//double tempP = 1 / (DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len);
+		double tempP = (DirectMeanError * DirectMeanError)
+			/ ((DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len)
+				* (DistanceFixedError + DistanceScaleError * sideValues.at(tempForSide1).len));
 		P(t, t) = tempP;
 	}
 	//方位角
 	for (; t < PRC; t++)
 		P(t, t) = (DirectMeanError * DirectMeanError) / (AzimuthMeanError * AzimuthMeanError);
-	//cout << P;
-	//B 30*21; P 21*21; L 30*1
-	//cout << B.transpose() * P * B;//对称
 	CMatrix<double> x = (B.transpose() * P * B).inversion() * B.transpose() * P * L;
-	//cout << "改正数" << endl;
-	//cout << x;
-	//将坐标改正值加入近似值
 	cout << "改正后" << endl;
 	for (int i = knownPointsNum; i < allPointsNum; i++) {
 		points.at(i).x += x((i - 3) * 2, 0);
@@ -295,10 +285,13 @@ void sideAngleAdjust::adjustment() {
 		cout << points.at(i).name << ": " << points.at(i).x << " , " << points.at(i).y << endl;
 	}
 	CMatrix<double> v = B * x - L;
-	//cout << v;
+	//验后中误差
+	CMatrix<double> lateMatrix = v.transpose() * P * v;
+	double lateError = sqrt(lateMatrix(0, 0) / ((sideValueNum + directionNum + azimuthValueNum) - ((allPointsNum - knownPointsNum) * 2 + stationsNum)));
+	cout << "验后中误差：" << lateError << endl;
 }
 
-//获取未知点坐标近似值,递归计算;lastInfo:方位角，x,y
+//获取未知点坐标近似值,递归计算;
 void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,double lastDirection, double lastX, double lastY) {
 	//如果没有下一个可计算点
 	vector<string> nextNames = getNextNames(station, otherKnown);
@@ -310,22 +303,9 @@ void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,dou
 		double direction = 0;
 		double leftAngle = getLeftAngle(otherKnown, station, nextNames.at(i));
 		double len = getLen(station, nextNames.at(i));
-		//已给方位角差了1",差几千米
-		//如果已知方位角
-		/*
-		if ((direction = getKnownAzimuth(station, nextNames.at(i)) < 3 * PI)) {
-
-		}
-		else {
-			direction = lastDirection + leftAngle - PI;
-			if (direction > 2 * PI)
-				direction -= 2 * PI;
-		}*/
-		//*
 		direction = lastDirection + leftAngle - PI;
 		if (direction > 2 * PI)
 			direction -= 2 * PI;
-			//*/
 		double currentX = 0, currentY = 0;
 		if (isKnownPoint(nextNames.at(i))) {
 			currentX = points.at(getPointByName(nextNames.at(i))).x;
@@ -336,11 +316,8 @@ void sideAngleAdjust::getApproxiCoordinate(string station, string otherKnown,dou
 		else {
 			currentX = lastX + len * cos(direction);
 			currentY = lastY + len * sin(direction);
-			//points.push_back(PointV1(nextNames.at(i), currentX,currentY,0));
 			points.at(getPointByName(nextNames.at(i))).x = currentX;
 			points.at(getPointByName(nextNames.at(i))).y = currentY;
-			cout.precision(DBL_DECIMAL_DIG);
-			cout << points.at(getPointByName(nextNames.at(i))).name << ": " << currentX << " , " << currentY << endl;
 			points.at(getPointByName(nextNames.at(i))).sign = 1;
 			getApproxiCoordinate(nextNames.at(i), station, direction, currentX, currentY);
 		}
@@ -359,12 +336,10 @@ double sideAngleAdjust::getKnownAzimuth(string station, string aim) {
 			double tempAzimuth = Tool::angleToRadian(azimuthValues.at(i).azimuthVal) - PI;
 			if (tempAzimuth < 0)
 				tempAzimuth += 2 * PI;
-			if (aim == "2")
-				cout << "逆：" << Tool::radianToAngle(tempAzimuth) << endl;
 			return tempAzimuth;
 		}
 	}
-	//无的方位角
+	//无此方位角
 	return 4 * PI;
 }
 

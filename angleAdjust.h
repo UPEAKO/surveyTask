@@ -4,6 +4,11 @@
 #include "Tool.h"
 #include "include.h"
 
+/*
+测角网遇到的问题为常数项L初次并非趋近于0，
+而是有几个加了2*PI,
+在于比较标准 azimuth Ljk Z0（超过2*PI时）
+*/
 class angleAdjust {
 public:
 	angleAdjust();
@@ -95,6 +100,7 @@ void angleAdjust::adjust() {
 				double tempPointY = (point1Y / tan(angle2) + point2Y / tan(angle1) + point2X - point1X) / (1 / tan(angle1) + 1 / tan(angle2));
 				points.at(getPointByName(tempPoint)).x = tempPointX;
 				points.at(getPointByName(tempPoint)).y = tempPointY;
+				cout.precision(DBL_DECIMAL_DIG);
 				cout << tempPoint << ": " << tempPointX << " , " << tempPointY << endl;
 				signForApproxiPoint++;
 			}
@@ -117,21 +123,24 @@ void angleAdjust::adjust() {
 	}
 	CMatrix<double> B(directionNum,(allPointsNum - knownPointsNum) * 2 + stationsNum);
 	CMatrix<double> L(directionNum,1);
-	//CMatrix<double> P(directionNum,directionNum);单位阵舍
-	//方向值误差方程系数及常数项
+	CMatrix<double> P(directionNum, directionNum);
 	int signForRow = 0;
 	for (int i = 0; i < directionValues.size(); i++) {
 		//史赖伯
 		double Z0 = 0;
 		int tempNum = directionValues.at(i).aims.size();
-		int allDeltaAngle = 0;
+		double allDeltaAngle = 0;
 		for (int k = 0; k < tempNum; k++) {
 			int pointStation = getPointByName(directionValues.at(i).station);//j
 			int pointAim = getPointByName(directionValues.at(i).aims.at(k).aim);//k
 			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
+			if (azimu < Tool::angleToRadian(directionValues.at(i).aims.at(k).direction)) {
+				azimu += (2 * PI);
+			}
 			allDeltaAngle += (azimu - Tool::angleToRadian(directionValues.at(i).aims.at(k).direction));
 		}
 		Z0 = allDeltaAngle / tempNum;
+		//系数及常数项
 		for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
 			//对每一个方向
 			int pointStation = getPointByName(directionValues.at(i).station);//j
@@ -166,16 +175,24 @@ void angleAdjust::adjust() {
 			//常数项L - (alpha - Z0)
 			double azimu = Tool::coordinateToAzimuthAngle(points.at(pointStation).x, points.at(pointStation).y, points.at(pointAim).x, points.at(pointAim).y);
 			double Ljk = getRadianDirection(points.at(pointStation).name, points.at(pointAim).name);
+			if (azimu < Ljk)
+				azimu += 2 * PI;
 			double tempL = Ljk - (azimu - Z0);
+			//cout << directionValues.at(i).station << "; " << directionValues.at(i).aims.at(j).aim << ": " << tempL << endl;
 			L(signForRow, 0) = tempL;
 			signForRow++;
 		}
+
 	}
-	//cout << B;
-	//cout << L;
-	//cout << B.transpose() * B;
 	CMatrix<double> x = (B.transpose() * B).inversion() * B.transpose() * L;
-	//cout << x;
+	//坐标改正后
+	cout << "改正后坐标" << endl;
+	for (int i = knownPointsNum; i < allPointsNum; i++) {
+		int location = i - knownPointsNum;
+		points.at(i).x += x(location * 2, 0);
+		points.at(i).y += x(location * 2 + 1, 0);
+		cout << points.at(i).name << ": " << points.at(i).x << "," << points.at(i).y << endl;
+	}
 }
 
 //由两点获取三角形第三点未知名称,or 空串
