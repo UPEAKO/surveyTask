@@ -4,11 +4,6 @@
 #include "Tool.h"
 #include "include.h"
 
-/*
-测角网遇到的问题为常数项L初次并非趋近于0，
-而是有几个加了2*PI,
-在于比较标准 azimuth Ljk Z0（超过2*PI时）
-*/
 class angleAdjust {
 public:
 	angleAdjust();
@@ -19,6 +14,7 @@ private:
 	double getRadianDirection(string station, string aim);
 	string getThirdPoint(string point1, string point2);
 	int getStationIndexByName(string name);
+	bool getStartPoints(string& point1, string& point2);
 
 	int directionNum;
 	vector<directionValue> directionValues;
@@ -31,8 +27,16 @@ private:
 
 //构造获取已知数据，未知点初始化为0
 angleAdjust::angleAdjust() {
-	ifstream f;
-	f.open("E:/cpp/data/angle.txt");
+	cout << "请输入测角网初始数据路径（eg:D:/angle.txt):" << endl;
+	string path = "";
+	getline(cin, path);
+	bool exist = Tool::fileExist(path);
+	while (!exist) {
+		cout << "路径无效！请重新输入：";
+		getline(cin, path);
+		exist = Tool::fileExist(path);
+	}
+	fstream f(path);
 	string eachLine;
 	vector<string> eachLines;
 	//line one
@@ -73,15 +77,38 @@ angleAdjust::angleAdjust() {
 		directionValue dV(station, edfs);
 		directionValues.push_back(dV);
 	}
+	f.close();
+}
+
+//获取起算点坐标
+bool angleAdjust::getStartPoints(string& point1, string& point2) {
+	for (int k = 0; k < knownPointsNum; k++) {
+		string knownPoint1 = points.at(k).name;
+		for (int i = 0; i < directionValues.size(); i++) {
+			if (directionValues.at(i).station == knownPoint1) {
+				for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
+					if (getPointByName(directionValues.at(i).aims.at(j).aim) < knownPointsNum) {
+						point1 = knownPoint1;
+						point2 = directionValues.at(i).aims.at(j).aim;
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
 }
 
 //平差计算
 void angleAdjust::adjust() {
 	//近似坐标
-	//标志位，所有近似坐标已出
+	//标志位，所有近似坐标已计算出出
 	int signForApproxiPoint = knownPointsNum;
-	string point1 = points.at(0).name;
-	string point2 = points.at(1).name;
+	string point1, point2;
+	if (!getStartPoints(point1, point2)) {
+		cout << "无合适起算点！" << endl;
+		return;
+	}
 	string tempPoint = getThirdPoint(point1, point2);
 	while (signForApproxiPoint < allPointsNum) {
 		if (tempPoint != "") {
@@ -101,7 +128,6 @@ void angleAdjust::adjust() {
 				points.at(getPointByName(tempPoint)).x = tempPointX;
 				points.at(getPointByName(tempPoint)).y = tempPointY;
 				cout.precision(DBL_DECIMAL_DIG);
-				cout << tempPoint << ": " << tempPointX << " , " << tempPointY << endl;
 				signForApproxiPoint++;
 			}
 			else {
@@ -109,7 +135,6 @@ void angleAdjust::adjust() {
 				double tempPointY = (point1Y / tan(angle2) + point2Y / tan(angle1) + point1X - point2X) / (1 / tan(angle1) + 1 / tan(angle2));
 				points.at(getPointByName(tempPoint)).x = tempPointX;
 				points.at(getPointByName(tempPoint)).y = tempPointY;
-				cout << tempPoint << ": " << tempPointX << " , " << tempPointY << endl;
 				signForApproxiPoint++;
 			}
 			//全体向前移动
@@ -185,13 +210,29 @@ void angleAdjust::adjust() {
 
 	}
 	CMatrix<double> x = (B.transpose() * B).inversion() * B.transpose() * L;
-	//坐标改正后
-	cout << "改正后坐标" << endl;
-	for (int i = knownPointsNum; i < allPointsNum; i++) {
-		int location = i - knownPointsNum;
-		points.at(i).x += x(location * 2, 0);
-		points.at(i).y += x(location * 2 + 1, 0);
-		cout << points.at(i).name << ": " << points.at(i).x << "," << points.at(i).y << endl;
+	
+	//输出平差结果
+	ofstream ofs;
+	cout << "请设置测角网结果输出路径（eg:D:/angleResult.txt;默认在当前路径）：" << endl;
+	string resultPath = "";
+	getline(cin, resultPath);
+	if (resultPath == "")
+		ofs.open("angleResult.txt");
+	else
+		ofs.open(resultPath);
+	ofs.flags(ios::left);
+	ofs.precision(DBL_DECIMAL_DIG);
+	ofs << "测角网平差结果" << endl;
+	ofs << setw(5) << "点名" << setw(20) << "X" << setw(20) << "Y" << endl;
+	for (int i = 0; i < allPointsNum; i++) {
+		if (i >= knownPointsNum) {
+			points.at(i).x += x((i - knownPointsNum) * 2, 0);
+			points.at(i).y += x((i - knownPointsNum) * 2 + 1, 0);
+			ofs << setw(5) << points.at(i).name << setw(20) << points.at(i).x << setw(20) << points.at(i).y << endl;
+		}
+		else {
+			ofs << setw(5) << points.at(i).name << setw(20) << points.at(i).x << setw(20) << points.at(i).y << endl;
+		}
 	}
 }
 

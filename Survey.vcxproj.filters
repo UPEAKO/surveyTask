@@ -13,9 +13,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="头文件\SA">
-      <UniqueIdentifier>{507c97fd-66c2-45ea-8088-d805e2d924d6}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CMatrix.h">
@@ -56,9 +53,6 @@
     </ClInclude>
     <ClInclude Include="eachDirectionFromStation.h">
       <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="sideAngleAdjustV1.h">
-      <Filter>头文件\SA</Filter>
     </ClInclude>
     <ClInclude Include="angleAdjust.h">
       <Filter>头文件</Filter>

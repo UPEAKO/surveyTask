@@ -7,23 +7,13 @@
 #include "CMatrix.h"
 #include "include.h"
 
-/*
-问题同测角网
-对于L最初仍有较大值
-因取舍是否对近似方位角加2*PI未使用：方位角 < 方向角条件
-而是用了方位角 < 定向角
-而对于每一个测站的初始边即为定向角边，二者值相差不多，且相对大小并不确定，所以有可能L加了2*PI，
-导致较大偏差
-最终改正后坐标于正确坐标差值在5cm之内
-另：已给方位角差了1",差几千米，无法平差？？？？？
-*/
 class sideAngleAdjust {
 public:
 	sideAngleAdjust();
 	~sideAngleAdjust() {};
-	void getAllValues();
 	void adjustment();
-	void getApproxiCoordinate(string station,string otherKnown,double lastDirection, double lastX, double lastY);
+private:
+	void getApproxiCoordinate(string station, string otherKnown, double lastDirection, double lastX, double lastY);
 	double getRadianDirection(string station, string aim);
 	bool isKnownPoint(string name);
 	vector<string> getNextNames(string station, string otherKnown);
@@ -31,7 +21,8 @@ public:
 	double getLen(string station, string nextName);
 	int getPointByName(string name);
 	double getKnownAzimuth(string station, string aim);
-private:
+	bool getStartPoints(string& point1, string& point2);
+
 	//边，方向，方位角
 	int sideValueNum;//9
 	vector<sideValue> sideValues;
@@ -51,14 +42,18 @@ private:
 	int stationsNum;
 };
 
-sideAngleAdjust::sideAngleAdjust() {
-	getAllValues();
-}
-
 //读入数据
-void sideAngleAdjust::getAllValues() {
-	ifstream f;
-	f.open("E:/cpp/data/sideAngle.txt");
+sideAngleAdjust::sideAngleAdjust() {
+	cout << "请输入边角网初始数据路径（eg:D:/sideAngle.txt):" << endl;
+	string path = "";
+	getline(cin, path);
+	bool exist = Tool::fileExist(path);
+	while (!exist) {
+		cout << "路径无效！请重新输入：";
+		getline(cin, path);
+		exist = Tool::fileExist(path);
+	}
+	fstream f(path);
 	string eachLine;
 	vector<string> eachLines;
 	//line one
@@ -81,7 +76,7 @@ void sideAngleAdjust::getAllValues() {
 	for (int i = 0; i < knownPointsNum; i++) {
 		getline(f, eachLine);
 		eachLines = Tool::split(eachLine, ' ');
-		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)),0);
+		PointV1 PV(eachLines.at(0), Tool::toDouble(eachLines.at(1)), Tool::toDouble(eachLines.at(2)), 0);
 		points.push_back(PV);
 	}
 
@@ -99,7 +94,7 @@ void sideAngleAdjust::getAllValues() {
 			eachLines = Tool::split(eachLine, ' ');
 			edfs.push_back(eachDirectionFromStation(eachLines.at(0), Tool::toDouble(eachLines.at(1))));
 		}
-		directionValue dV(station,edfs);
+		directionValue dV(station, edfs);
 		directionValues.push_back(dV);
 	}
 
@@ -124,18 +119,41 @@ void sideAngleAdjust::getAllValues() {
 	f.close();
 }
 
+//获取近似坐标起始计算点
+bool sideAngleAdjust::getStartPoints(string& point1, string& point2) {
+	for (int k = 0; k < knownPointsNum; k++) {
+		string knownPoint1 = points.at(k).name;
+		for (int i = 0; i < directionValues.size(); i++) {
+			if (directionValues.at(i).station == knownPoint1) {
+				for (int j = 0; j < directionValues.at(i).aims.size(); j++) {
+					if (getPointByName(directionValues.at(i).aims.at(j).aim) < knownPointsNum) {
+						point1 = knownPoint1;
+						point2 = directionValues.at(i).aims.at(j).aim;
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
 //平差计算
 void sideAngleAdjust::adjustment() {
 	//两已知点线段开始计算近似坐标
-	//占位:此处添加查找两相连接的已知点函数
-	double x1 = points.at(getPointByName("A")).x;
-	double y1 = points.at(getPointByName("A")).y;
-	points.at(getPointByName("A")).sign = 1;
-	double x2 = points.at(getPointByName("B")).x;
-	double y2 = points.at(getPointByName("B")).y;
-	points.at(getPointByName("B")).sign = 1;
+	string point1, point2;
+	if (!getStartPoints(point1, point2)) {
+		cout << "无合适起算点！" << endl;
+		return;
+	}
+	double x1 = points.at(getPointByName(point1)).x;
+	double y1 = points.at(getPointByName(point1)).y;
+	points.at(getPointByName(point1)).sign = 1;
+	double x2 = points.at(getPointByName(point2)).x;
+	double y2 = points.at(getPointByName(point2)).y;
+	points.at(getPointByName(point2)).sign = 1;
 	double azimuth = Tool::coordinateToAzimuthAngle(x1, y1, x2, y2);
-	getApproxiCoordinate("B", "A", azimuth, x2, y2);
+	getApproxiCoordinate(point2, point1, azimuth, x2, y2);
 	//30 21
 	CMatrix<double> B(sideValueNum + directionNum + azimuthValueNum, (allPointsNum - knownPointsNum) * 2 + stationsNum);
 	CMatrix<double> L(sideValueNum + directionNum + azimuthValueNum, 1);
@@ -278,17 +296,36 @@ void sideAngleAdjust::adjustment() {
 	for (; t < PRC; t++)
 		P(t, t) = (DirectMeanError * DirectMeanError) / (AzimuthMeanError * AzimuthMeanError);
 	CMatrix<double> x = (B.transpose() * P * B).inversion() * B.transpose() * P * L;
-	cout << "改正后" << endl;
-	for (int i = knownPointsNum; i < allPointsNum; i++) {
-		points.at(i).x += x((i - 3) * 2, 0);
-		points.at(i).y += x((i - 3) * 2 + 1, 0);
-		cout << points.at(i).name << ": " << points.at(i).x << " , " << points.at(i).y << endl;
+
+
+	//输出平差结果
+	ofstream ofs;
+	cout << "请设置边角网平差结果输出路径（eg:D:/sideAngleResult.txt;默认在当前路径）：" << endl;
+	string resultPath = "";
+	getline(cin, resultPath);
+	if (resultPath == "")
+		ofs.open("sideAngleResult.txt");
+	else
+		ofs.open(resultPath);
+	ofs.flags(ios::left);
+	ofs.precision(DBL_DECIMAL_DIG);
+	ofs << "边角网平差结果" << endl;
+	ofs << setw(5) << "点名" << setw(20) << "X" << setw(20) << "Y" << endl;
+	for (int i = 0; i < allPointsNum; i++) {
+		if (i >= knownPointsNum) {
+			points.at(i).x += x((i - knownPointsNum) * 2, 0);
+			points.at(i).y += x((i - knownPointsNum) * 2 + 1, 0);
+			ofs << setw(5) << points.at(i).name << setw(20) << points.at(i).x << setw(20) << points.at(i).y << endl;
+		}
+		else {
+			ofs << setw(5) << points.at(i).name << setw(20) << points.at(i).x << setw(20) << points.at(i).y << endl;
+		}
 	}
 	CMatrix<double> v = B * x - L;
 	//验后中误差
 	CMatrix<double> lateMatrix = v.transpose() * P * v;
 	double lateError = sqrt(lateMatrix(0, 0) / ((sideValueNum + directionNum + azimuthValueNum) - ((allPointsNum - knownPointsNum) * 2 + stationsNum)));
-	cout << "验后中误差：" << lateError << endl;
+	ofs << "验后中误差：" << lateError << endl;
 }
 
 //获取未知点坐标近似值,递归计算;

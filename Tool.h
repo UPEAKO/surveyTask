@@ -122,4 +122,14 @@ public:
 	static double angle2MinusAngle1(double angle2, double angle1) {
 		return angle2 * 180 * 60 * 60 - angle1 * 180 * 60 * 60;
 	}
+
+	static bool fileExist(string path) {
+		fstream f(path);
+		if (!f)
+			return false;
+		else {
+			f.close();
+			return true;
+		}
+	}
 };

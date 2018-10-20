@@ -7,7 +7,6 @@
 #include "angleAdjust.h"
 
 int main() {
-	/*
 	CMatrix<double> A("E:/cpp/data/A.txt");
 	CMatrix<double> B("E:/cpp/data/B.txt");
 	cout << "¾ØÕóA:" << endl;
@@ -36,11 +35,10 @@ int main() {
 	levelP.calculation();
 	vector<string> used;
 	cout << levelP.getMinHeight("A", "B", used) << endl;
-	*/
 	sideAngleAdjust sAA;
 	sAA.adjustment();
-	//angleAdjust AA;
-	//AA.adjust();
+	angleAdjust AA;
+    AA.adjust();
 	//system("pause");
 	return 0;
 }
