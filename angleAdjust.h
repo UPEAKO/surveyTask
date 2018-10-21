@@ -27,16 +27,37 @@ private:
 
 //构造获取已知数据，未知点初始化为0
 angleAdjust::angleAdjust() {
-	cout << "请输入测角网初始数据路径（eg:D:/angle.txt):" << endl;
+	fstream f;
+	cout << "请输入测角网初始数据路径（eg:D:/angle.txt),默认为当前路径下angle.txt:" << endl;
 	string path = "";
 	getline(cin, path);
 	bool exist = Tool::fileExist(path);
-	while (!exist) {
-		cout << "路径无效！请重新输入：";
-		getline(cin, path);
-		exist = Tool::fileExist(path);
+	if (path == "") {
+		path = "angle.txt";
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			exist = Tool::fileExist(path);
+		}
+		f.open(path);
 	}
-	fstream f(path);
+	else
+	{
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			if (path == "") {
+				path = "angle.txt";
+				exist = Tool::fileExist(path);
+			}
+			else {
+				exist = Tool::fileExist(path);
+			}
+		}
+		f.open(path);
+	}
 	string eachLine;
 	vector<string> eachLines;
 	//line one
@@ -213,7 +234,7 @@ void angleAdjust::adjust() {
 	
 	//输出平差结果
 	ofstream ofs;
-	cout << "请设置测角网结果输出路径（eg:D:/angleResult.txt;默认在当前路径）：" << endl;
+	cout << "请设置测角网结果输出路径（eg:D:/angleResult.txt;默认在当前路径angleResult.txt）：" << endl;
 	string resultPath = "";
 	getline(cin, resultPath);
 	if (resultPath == "")
@@ -234,6 +255,7 @@ void angleAdjust::adjust() {
 			ofs << setw(5) << points.at(i).name << setw(20) << points.at(i).x << setw(20) << points.at(i).y << endl;
 		}
 	}
+	ofs.close();
 }
 
 //由两点获取三角形第三点未知名称,or 空串

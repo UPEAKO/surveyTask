@@ -9,18 +9,46 @@ private:
 	vector<Point> points;
 	vector<SurveyValue> surveyValues;
 public:
-	LevelApproximation(const char * path) {
+	LevelApproximation() {
 		/*读取数据*/
 		string s;
 		fstream f;
-		f.open(path);
+		cout << "请输入水准路线初始数据路径（eg:D:/level.txt),默认为当前路径下的level.txt:" << endl;
+		string path = "";
+		getline(cin, path);
+		if (path == "") {
+			path = "level.txt";
+			bool exist = Tool::fileExist(path);
+			while (!exist) {
+				cout << "路径无效！请重新输入：";
+				getline(cin, path);
+				exist = Tool::fileExist(path);
+			}
+			f.open(path);
+		}
+		else
+		{
+			bool exist = Tool::fileExist(path);
+			while (!exist) {
+				cout << "路径无效！请重新输入：";
+				getline(cin, path);
+				if (path == "") {
+					path = "level.txt";
+					exist = Tool::fileExist(path);
+				}
+				else {
+					exist = Tool::fileExist(path);
+				}
+			}
+			f.open(path);
+		}
 		//获取第一行
 		getline(f, s);
 		vector<string> ss = Tool::split(s, ',');
 		int allPoints = Tool::toInt(ss.at(0));
 		int knownPoints = Tool::toInt(ss.at(1));
 		int numsOfEachLen = Tool::toInt(ss.at(2));
-		//获取已知点及加入未知点
+		//获取已知点及未知点置为非法
 		for (int i = 0; i < allPoints; i++) {
 			if (i < knownPoints) {
 				ss.clear();
@@ -72,35 +100,32 @@ public:
 			int end = searchPointByName(surveyValues.at(i).end);
 			points.at(end).height = points.at(begin).height + surveyValues.at(i).eachHeightAfterCorrect;
 		}
-		//将近似平差结果写入文件
+		//输出平差结果
 		ofstream of;
-		of.open("E:/cpp/data/LevelApproximation.txt");
+		cout << "请设置水准路线平差结果输出路径（eg:D:/levelResult.txt;默认在当前路径levelResult.txt）：" << endl;
+		string resultPath = "";
+		getline(cin, resultPath);
+		if (resultPath == "")
+			of.open("levelResult.txt");
+		else
+			of.open(resultPath);
 		of.flags(ios::left);
+		of << "水准路线平差结果" << endl;
 		of << setw(20) << "点名" << setw(20) << "路线长" << setw(20) << "观测高差" << setw(20) 
 			<< "改正数" << setw(20) << "改正后高差 " << setw(20) << "高程" << endl;
-		//B放到最后
-		Point temp = points.at(1);
-		points.erase(points.begin() + 1);
-		points.push_back(temp);
 		//写出所有结果
-		//设置小数点后三位，会四舍五入
 		of << setiosflags(ios::fixed) << setprecision(3);
 		for (unsigned int i = 0; i < surveyValues.size(); i++) {
-			of << setw(20) << points.at(i).name 
+			of << setw(100) <<surveyValues.at(i).begin << setw(20) << points.at(searchPointByName(surveyValues.at(i).begin)).height << endl;
+			of << setw(20) << surveyValues.at(i).end
 				<< setw(20) << surveyValues.at(i).eachLength 
 				<< setw(20) << surveyValues.at(i).eachHeight
 				<< setw(20) << surveyValues.at(i).deltaHeight 
 				<< setw(20) << surveyValues.at(i).eachHeightAfterCorrect 
-				<<setw(20) << points.at(i).height << endl;
+				<< setw(20) << points.at(searchPointByName(surveyValues.at(i).end)).height <<endl;
+			of << endl;
 		}
-		of << setw(20) << points.at(points.size() - 1).name 
-			<< setw(20) << sumLength 
-			<< setw(20) << sumHeight
-			<< setw(20) << deltaHeightSum
-			<< setw(20) << deltaHeight 
-			<< setw(20) << points.at(points.size() - 1).height << endl;
 		of.close();
-		cout << "水准近似平差结果写入文件\"E:/cpp/data/LevelApproximation.txt\"中!" << endl;
 	}
 
 	int searchPointByName(string name) {

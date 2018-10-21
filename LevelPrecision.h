@@ -9,7 +9,7 @@
 
 class LevelPrecision {
 public:
-	LevelPrecision(const char * path);
+	LevelPrecision();
 	void calculation();
 	int searchPointByName(string name);
 	double getHeightBySearch(string name,string sign);
@@ -17,7 +17,6 @@ public:
 	double getMinHeight(string name,string end,vector<string> used);
 	vector<int> nextLens(string name, vector<string> used);
 	bool hasUsed(vector<string> used,string currentName);
-	//构造图搜索
 private:
 	vector<Point> points;
 	vector<SurveyValue> surveyValues;
@@ -33,11 +32,39 @@ private:
 	vector<string> path;
 };
 
-LevelPrecision::LevelPrecision(const char * path) {
+LevelPrecision::LevelPrecision() {
 	/*读取数据*/
 	string s;
 	fstream f;
-	f.open(path);
+	cout << "请输入水准网初始数据路径（eg:D:/levelNet.txt),默认为当前路径下的levelNet.txt:" << endl;
+	string path = "";
+	getline(cin, path);
+	if (path == "") {
+		path = "levelNet.txt";
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			exist = Tool::fileExist(path);
+		}
+		f.open(path);
+	}
+	else
+	{
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			if (path == "") {
+				path = "levelNet.txt";
+				exist = Tool::fileExist(path);
+			}
+			else {
+				exist = Tool::fileExist(path);
+			}
+		}
+		f.open(path);
+	}
 	//获取第一行
 	getline(f, s);
 	vector<string> ss = Tool::split(s, ' ');
@@ -111,7 +138,6 @@ void LevelPrecision::calculation() {
 	//计算得到近似值误差矩阵x
 	CMatrix<double> x = (B.transpose() * P * B).inversion() * B.transpose() * P * l;
 	CMatrix<double> V = B * x - l;
-	cout << V;
 	//高差改正
 	for (int i = 0; i < numsOfEachLen; i++) {
 		surveyValues.at(i).deltaHeight = V(i, 0);
@@ -121,6 +147,34 @@ void LevelPrecision::calculation() {
 	for (int i = knownPoints; i < allPoints; i++) {
 		points.at(i).height = getHeightBySearch(points.at(i).name,"eachHeightAfterCorrect");
 	}
+
+	//输出平差结果
+	ofstream of;
+	cout << "请设置水准网平差结果输出路径（eg:D:/levelNetResult.txt;默认在当前路径levelNetResult.txt）：" << endl;
+	string resultPath = "";
+	getline(cin, resultPath);
+	if (resultPath == "")
+		of.open("levelNetResult.txt");
+	else
+		of.open(resultPath);
+	of.flags(ios::left);
+	of << "水准网平差结果" << endl;
+	of << setw(20) << "点名" << setw(20) << "路线长" << setw(20) << "观测高差" << setw(20)
+		<< "改正数" << setw(20) << "改正后高差 " << setw(20) << "高程" << endl;
+
+	//写出所有结果
+	of << setiosflags(ios::fixed) << setprecision(3);
+	for (unsigned int i = 0; i < surveyValues.size(); i++) {
+		of << setw(100) << surveyValues.at(i).begin << setw(20) << points.at(searchPointByName(surveyValues.at(i).begin)).height << endl;
+		of << setw(20) << surveyValues.at(i).end
+			<< setw(20) << surveyValues.at(i).eachLength
+			<< setw(20) << surveyValues.at(i).eachHeight
+			<< setw(20) << surveyValues.at(i).deltaHeight
+			<< setw(20) << surveyValues.at(i).eachHeightAfterCorrect 
+			<< setw(20) << points.at(searchPointByName(surveyValues.at(i).end)).height << endl;
+		of << endl;
+	}
+	of.close();
 }
 
 /*通过名称查找点，若无将此点名添加到最后*/

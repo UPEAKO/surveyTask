@@ -44,16 +44,36 @@ private:
 
 //读入数据
 sideAngleAdjust::sideAngleAdjust() {
-	cout << "请输入边角网初始数据路径（eg:D:/sideAngle.txt):" << endl;
+	fstream f;
+	cout << "请输入边角网初始数据路径（eg:D:/sideAngle.txt),默认为当前路径下的sideAngle.txt:" << endl;
 	string path = "";
 	getline(cin, path);
-	bool exist = Tool::fileExist(path);
-	while (!exist) {
-		cout << "路径无效！请重新输入：";
-		getline(cin, path);
-		exist = Tool::fileExist(path);
+	if (path == "") {
+		path = "sideAngle.txt";
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			exist = Tool::fileExist(path);
+		}
+		f.open(path);
 	}
-	fstream f(path);
+	else
+	{
+		bool exist = Tool::fileExist(path);
+		while (!exist) {
+			cout << "路径无效！请重新输入：";
+			getline(cin, path);
+			if (path == "") {
+				path = "sideAngle.txt";
+				exist = Tool::fileExist(path);
+			}
+			else {
+				exist = Tool::fileExist(path);
+			}
+		}
+		f.open(path);
+	}
 	string eachLine;
 	vector<string> eachLines;
 	//line one
@@ -300,7 +320,7 @@ void sideAngleAdjust::adjustment() {
 
 	//输出平差结果
 	ofstream ofs;
-	cout << "请设置边角网平差结果输出路径（eg:D:/sideAngleResult.txt;默认在当前路径）：" << endl;
+	cout << "请设置边角网平差结果输出路径（eg:D:/sideAngleResult.txt;默认在当前路径sideAngleResult.txt）：" << endl;
 	string resultPath = "";
 	getline(cin, resultPath);
 	if (resultPath == "")
@@ -326,6 +346,7 @@ void sideAngleAdjust::adjustment() {
 	CMatrix<double> lateMatrix = v.transpose() * P * v;
 	double lateError = sqrt(lateMatrix(0, 0) / ((sideValueNum + directionNum + azimuthValueNum) - ((allPointsNum - knownPointsNum) * 2 + stationsNum)));
 	ofs << "验后中误差：" << lateError << endl;
+	ofs.close();
 }
 
 //获取未知点坐标近似值,递归计算;

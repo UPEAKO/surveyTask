@@ -7,6 +7,7 @@
 #include "angleAdjust.h"
 
 int main() {
+	/*
 	CMatrix<double> A("E:/cpp/data/A.txt");
 	CMatrix<double> B("E:/cpp/data/B.txt");
 	cout << "矩阵A:" << endl;
@@ -29,16 +30,16 @@ int main() {
 	cout << Tool::radianToAngle(Tool::angleToRadian(90.0125)) << endl;
 	cout << "第二象限角平分线方位角:" << endl;
 	cout << Tool::radianToAngle(Tool::coordinateToAzimuthAngle(-25.5, 25.5, -51.0, 51)) << endl;
-	LevelApproximation levelA("E:/cpp/data/level.txt");
+	*/
+	LevelApproximation levelA;
 	levelA.Calculation();
-	LevelPrecision levelP("E:/cpp/data/level2.txt");
+	LevelPrecision levelP;
 	levelP.calculation();
 	vector<string> used;
-	cout << levelP.getMinHeight("A", "B", used) << endl;
+	cout<< "A,B两点最短距离：" << levelP.getMinHeight("A", "B", used) << endl;
 	sideAngleAdjust sAA;
 	sAA.adjustment();
 	angleAdjust AA;
     AA.adjust();
-	//system("pause");
 	return 0;
 }
