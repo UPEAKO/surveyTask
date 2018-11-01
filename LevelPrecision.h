@@ -159,6 +159,14 @@ void LevelPrecision::calculation() {
 		of.open(resultPath);
 	of.flags(ios::left);
 	of << "水准网平差结果" << endl;
+	of << endl;
+
+	//后验中误差
+	CMatrix<double> lateMatrix = V.transpose() * P * V;
+	double lateError = sqrt(lateMatrix(0, 0) / (numsOfEachLen - (allPoints - knownPoints)));
+	of << "后验单位权中误差：" << lateError << endl;
+	of << endl;
+
 	of << setw(20) << "点名" << setw(20) << "路线长" << setw(20) << "观测高差" << setw(20)
 		<< "改正数" << setw(20) << "改正后高差 " << setw(20) << "高程" << endl;
 

@@ -169,7 +169,6 @@ void angleAdjust::adjust() {
 	}
 	CMatrix<double> B(directionNum,(allPointsNum - knownPointsNum) * 2 + stationsNum);
 	CMatrix<double> L(directionNum,1);
-	CMatrix<double> P(directionNum, directionNum);
 	int signForRow = 0;
 	for (int i = 0; i < directionValues.size(); i++) {
 		//史赖伯
@@ -230,7 +229,9 @@ void angleAdjust::adjust() {
 		}
 
 	}
-	CMatrix<double> x = (B.transpose() * B).inversion() * B.transpose() * L;
+	CMatrix<double> N_invertion = (B.transpose() * B).inversion();
+	CMatrix<double> x = N_invertion * B.transpose() * L;
+	CMatrix<double> v = B * x - L;
 	
 	//输出平差结果
 	ofstream ofs;
@@ -244,6 +245,26 @@ void angleAdjust::adjust() {
 	ofs.flags(ios::left);
 	ofs.precision(DBL_DECIMAL_DIG);
 	ofs << "测角网平差结果" << endl;
+	ofs << endl;
+
+	//后验中误差
+	CMatrix<double> lateMatrix = v.transpose() * v;
+	double lateError = sqrt(lateMatrix(0, 0) / (directionNum - ((allPointsNum - knownPointsNum) * 2 + stationsNum)));
+	ofs << "后验单位权中误差: " << lateError << endl;
+	ofs << endl;
+	//点位中误差
+	ofs << "点位中误差: " << endl;
+	ofs << setw(5) << "点名" << setw(30) << "deltaX" << setw(30) << "deltaY" << setw(30) << "delta" << endl;
+	for (int i = 0; i < allPointsNum - knownPointsNum; i++) {
+		double sigmaX = lateError * sqrt(N_invertion(2 * i, 2 * i));
+		double sigmaY = lateError * sqrt(N_invertion(2 * i + 1, 2 * i + 1));
+		double sigma = lateError * sqrt(N_invertion(2 * i + 1, 2 * i + 1) + N_invertion(2 * i, 2 * i));
+		string name = points.at(knownPointsNum + i).name;
+		ofs << setw(5) << name << setw(30) << sigmaX << setw(30) << sigmaY << setw(30) << sigma << endl;
+	}
+	ofs << endl;
+
+	ofs << "控制点成果： " << endl;
 	ofs << setw(5) << "点名" << setw(20) << "X" << setw(20) << "Y" << endl;
 	for (int i = 0; i < allPointsNum; i++) {
 		if (i >= knownPointsNum) {
