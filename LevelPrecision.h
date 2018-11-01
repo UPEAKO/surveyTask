@@ -4,7 +4,7 @@
 #include "SurveyValue.h"
 #include "Tool.h"
 #include "CMatrix.h"
-
+#include "MinLenInfo.h"
 
 
 class LevelPrecision {
@@ -14,7 +14,7 @@ public:
 	int searchPointByName(string name);
 	double getHeightBySearch(string name,string sign);
 	//直接搜索
-	double getMinHeight(string name,string end,vector<string> used);
+	MinLenInfo getMinHeight(string name,string end,vector<string> used);
 	vector<int> nextLens(string name, vector<string> used);
 	bool hasUsed(vector<string> used,string currentName);
 private:
@@ -29,7 +29,7 @@ private:
 	//所有高差数
 	int numsOfEachLen;
 	//最近路径
-	vector<string> path;
+	vector<string> finalPath;
 };
 
 LevelPrecision::LevelPrecision() {
@@ -161,6 +161,24 @@ void LevelPrecision::calculation() {
 	of << "水准网平差结果" << endl;
 	of << endl;
 
+	//闭合差
+	vector<string> used;
+	MinLenInfo minInfo = getMinHeight(points.at(0).name, points.at(1).name, used);
+	finalPath = minInfo.path;
+	finalPath.push_back(points.at(0).name);
+	double sumHeight = 0;
+	for (int i = 0; i < finalPath.size() - 1; i++) {
+		for (int j = 0; j < surveyValues.size(); j++) {
+			if (surveyValues.at(j).begin == finalPath.at(i) && surveyValues.at(j).end == finalPath.at(i + 1))
+				sumHeight -= surveyValues.at(j).eachHeight;
+			else if (surveyValues.at(j).end == finalPath.at(i) && surveyValues.at(j).begin == finalPath.at(i + 1))
+				sumHeight += surveyValues.at(j).eachHeight;
+		}
+	}
+	double deltaHeight = (points.at(1).height - points.at(0).height) - sumHeight;
+	of << "闭合差: " << deltaHeight << endl;
+	of << endl;
+
 	//后验中误差
 	CMatrix<double> lateMatrix = V.transpose() * P * V;
 	double lateError = sqrt(lateMatrix(0, 0) / (numsOfEachLen - (allPoints - knownPoints)));
@@ -250,30 +268,39 @@ double LevelPrecision::getHeightBySearch(string name,string sign) {
 }
 
 /*下面三个函数递归求解水准网已知点最短路径*/
-double LevelPrecision::getMinHeight(string name,string end,vector<string> used) {
+MinLenInfo LevelPrecision::getMinHeight(string name,string end,vector<string> used) {
 	vector<int> nexts = nextLens(name,used);
-	if (name == end)
-		return 0.0;
-	if (nexts.size() == 0)
-		return DBL_MAX;
+	if (name == end) {
+		MinLenInfo minInfo;
+		minInfo.min = 0.0;
+		return minInfo;
+	}
+	if (nexts.size() == 0) {
+		MinLenInfo minInfo;
+		minInfo.min = DBL_MAX;
+		return minInfo;
+	}
 	used.push_back(name);
+
 	string pathEach = nexts.at(0) > 0 ? surveyValues.at(abs(nexts.at(0)) - 1).end : surveyValues.at(abs(nexts.at(0)) - 1).begin;
-	double min = surveyValues.at(abs(nexts.at(0)) - 1).eachLength
-			+ getMinHeight(nexts.at(0) > 0 ? surveyValues.at(abs(nexts.at(0)) - 1).end : surveyValues.at(abs(nexts.at(0)) - 1).begin, end, used);
+	MinLenInfo minInfo = getMinHeight(nexts.at(0) > 0 ? surveyValues.at(abs(nexts.at(0)) - 1).end : surveyValues.at(abs(nexts.at(0)) - 1).begin, end, used);
+	minInfo.min += surveyValues.at(abs(nexts.at(0)) - 1).eachLength;
+	minInfo.path.push_back(pathEach);
+
 	for (int i = 1; i < nexts.size(); i++) {
-		double temp = surveyValues.at(abs(nexts.at(i)) - 1).eachLength
-			+ getMinHeight(nexts.at(i) > 0 ? surveyValues.at(abs(nexts.at(i)) - 1).end : surveyValues.at(abs(nexts.at(i)) - 1).begin, end, used);
-		if (temp < min) {
-			pathEach = nexts.at(i) > 0 ? surveyValues.at(abs(nexts.at(i)) - 1).end : surveyValues.at(abs(nexts.at(i)) - 1).begin;
-			min = temp;
+		string tempPathEach = nexts.at(i) > 0 ? surveyValues.at(abs(nexts.at(i)) - 1).end : surveyValues.at(abs(nexts.at(i)) - 1).begin;
+		MinLenInfo tempMinInfo = getMinHeight(nexts.at(i) > 0 ? surveyValues.at(abs(nexts.at(i)) - 1).end : surveyValues.at(abs(nexts.at(i)) - 1).begin, end, used);
+		tempMinInfo.min += surveyValues.at(abs(nexts.at(i)) - 1).eachLength;
+		tempMinInfo.path.push_back(tempPathEach);
+		if (tempMinInfo.min < minInfo.min) {
+			minInfo = tempMinInfo;
 		}
 	}
-	if (pathEach != "P3")
-		path.push_back(pathEach);
-	return min;
+	return minInfo;
 }
 
 vector<int> LevelPrecision::nextLens(string name, vector<string> used) {
+	//由于正负零问题，故加一
 	vector<int> result;
 	//name at begin
 	for (int i = 0; i < surveyValues.size(); i++) {

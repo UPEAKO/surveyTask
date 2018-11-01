@@ -35,8 +35,6 @@ int main() {
 	levelA.Calculation();
 	LevelPrecision levelP;
 	levelP.calculation();
-	vector<string> used;
-	cout<< "A,BÁ½µã×î¶Ì¾àÀë£º" << levelP.getMinHeight("A", "B", used) << endl;
 	sideAngleAdjust sAA;
 	sAA.adjustment();
 	angleAdjust AA;

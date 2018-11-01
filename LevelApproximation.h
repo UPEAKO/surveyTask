@@ -84,7 +84,10 @@ public:
 		//闭合差
 		double deltaHeight = (points.at(1).height - points.at(0).height);
 		double deltaHeightSum = deltaHeight - sumHeight;
-		if (deltaHeightSum > 1E-3) {
+		//四等水准闭合差限差
+		double limit = 20 * sqrt(sumLength);
+		//转为毫米
+		if (abs(deltaHeightSum * 1000) > limit) {
 			cout << "闭合差超限!" << endl;
 			return;
 		}

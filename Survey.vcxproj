@@ -124,6 +124,7 @@
     <ClInclude Include="eachDirectionFromStation.h" />
     <ClInclude Include="include.h" />
     <ClInclude Include="LevelPrecision.h" />
+    <ClInclude Include="MinLenInfo.h" />
     <ClInclude Include="PointV1.h" />
     <ClInclude Include="sideAngleAdjust.h" />
     <ClInclude Include="sideValue.h" />
