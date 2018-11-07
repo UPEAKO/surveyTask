@@ -235,7 +235,7 @@ void angleAdjust::adjust() {
 	
 	//输出平差结果
 	ofstream ofs;
-	cout << "请设置测角网结果输出路径（eg:D:/angleResult.txt;默认在当前路径angleResult.txt）：" << endl;
+	cout << "请设置测角网平差结果输出路径（eg:D:/angleResult.txt;默认在当前路径angleResult.txt）：" << endl;
 	string resultPath = "";
 	getline(cin, resultPath);
 	if (resultPath == "")
